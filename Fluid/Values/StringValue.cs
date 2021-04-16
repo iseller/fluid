@@ -116,7 +116,7 @@ namespace Fluid.Values
 
         public override bool ToBooleanValue()
         {
-            return true;
+            return !string.IsNullOrEmpty(_value);
         }
 
         public override decimal ToNumberValue()
