@@ -23,6 +23,10 @@ namespace Fluid.Values
                 if (this._valueList == null)
                 {
                     this._valueList = this.Values.ToList();
+                    if (this._valueList.Count < this._maxItem)
+                    {
+                        this._count = this._valueList.Count;
+                    }
                 }
 
                 return this._valueList;
@@ -59,7 +63,16 @@ namespace Fluid.Values
                     break;
 
                 case "last":
-                    var last = this.Values.LastOrDefault();
+                    T last;
+                    if (this._count.HasValue && this._count <= this._maxItem)
+                    {
+                        last = this.Values.LastOrDefault();
+                    }
+                    else
+                    {
+                        last = this._value.LastOrDefault();
+                    }
+
                     if (last != null)
                     {
                         return FluidValue.Create(last, context.Options);
