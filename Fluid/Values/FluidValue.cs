@@ -183,13 +183,11 @@ namespace Fluid.Values
                             }
                             return new ArrayValue(values);
 
+                        case IQueryable queryable:
+                            return new QueryableValue<object>(queryable as IQueryable<object>, options);
+
                         case IEnumerable enumerable:
-                            var fluidValues = new List<FluidValue>();
-                            foreach (var item in enumerable)
-                            {
-                                fluidValues.Add(Create(item, options));
-                            }
-                            return new ArrayValue(fluidValues);
+                            return new EnumerableValue(enumerable, options);
                     }
 
                     return new ObjectValue(value);
