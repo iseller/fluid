@@ -69,42 +69,28 @@ namespace Fluid.Filters
                 return input;
             }
 
-            var concat = new List<FluidValue>();
+            var input1 = input.ToObjectValue() as IEnumerable<object>;
+            var arr1 = arguments.At(0).ToObjectValue() as IEnumerable<object>;
 
-            foreach(var item in input.Enumerate())
-            {
-                concat.Add(item);
-            }
-
-            foreach (var item in arguments.At(0).Enumerate())
-            {
-                concat.Add(item);
-            }
-
-            return new ArrayValue(concat);
+            return FluidValue.Create(input1.AsQueryable().Concat(arr1.AsQueryable()), context.Options);
         }
 
-        public static async ValueTask<FluidValue> Map(FluidValue input, FilterArguments arguments, TemplateContext context)
+        public static ValueTask<FluidValue> Map(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
             if (input.Type != FluidValues.Array)
             {
                 return input;
             }
 
+            var list = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
             var member = arguments.At(0).ToStringValue();
 
-            var list = new List<FluidValue>();
-
-            foreach(var item in input.Enumerate())
-            {
-                list.Add(await item.GetValueAsync(member, context));
-            }
-
-            return new ArrayValue(list);
+            var selector = ArrayFilters.GetPropertySelector(list, member);
+            return FluidValue.Create(list.Select(selector), context.Options);
         }
 
         // https://github.com/Shopify/liquid/commit/842986a9721de11e71387732be51951285225977
-        public static async ValueTask<FluidValue> Where(FluidValue input, FilterArguments arguments, TemplateContext context)
+        public static ValueTask<FluidValue> Where(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
             if (input.Type != FluidValues.Array)
             {
@@ -116,20 +102,9 @@ namespace Fluid.Filters
 
             // Second argument is the value to match, or 'true' if none is defined
             var targetValue = arguments.At(1).Or(BooleanValue.True);
-
-            var list = new List<FluidValue>();
-
-            foreach (var item in input.Enumerate())
-            {
-                var itemValue = await item.GetValueAsync(member, context);
-
-                if (itemValue.Equals(targetValue))
-                {
-                    list.Add(item);
-                }
-            }
-
-            return new ArrayValue(list);
+            
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            return FluidValue.Create(source.Where(GetPropertyPredicate(source, member, targetValue.ToObjectValue())), context.Options);
         }
 
         public static ValueTask<FluidValue> Reverse(FluidValue input, FilterArguments arguments, TemplateContext context)
@@ -139,7 +114,8 @@ namespace Fluid.Filters
                 return input;
             }
 
-            return new ArrayValue(input.Enumerate().Reverse());
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            return FluidValue.Create(source.Reverse(), context.Options);
         }
 
         public static async ValueTask<FluidValue> Size(FluidValue input, FilterArguments arguments, TemplateContext context)
@@ -157,61 +133,54 @@ namespace Fluid.Filters
             return NilValue.Instance;
         }
 
-        public static async ValueTask<FluidValue> Sort(FluidValue input, FilterArguments arguments, TemplateContext context)
+        public static ValueTask<FluidValue> Sort(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
             if (arguments.Count > 0)
             {
                 var member = arguments.At(0).ToStringValue();
-
-                var values = new List<KeyValuePair<FluidValue, object>>();
-
-                foreach (var item in input.Enumerate())
-                {
-                    values.Add(new KeyValuePair<FluidValue, object>(item, (await item.GetValueAsync(member, context)).ToObjectValue()));
-                }
-
-                var orderedValues = values
-                    .OrderBy(x => x.Value)
-                    .Select(x => x.Key)
-                    .ToArray();
-
-                return new ArrayValue(orderedValues);
+                var selector = GetPropertySelector(source, member);
+                return FluidValue.Create(source.OrderBy(selector), context.Options);
             }
             else
             {
-                return new ArrayValue(input.Enumerate().OrderBy(x => x.ToStringValue(), StringComparer.Ordinal).ToArray());
+                return FluidValue.Create(source.OrderBy(o => o), context.Options);
             }
         }
 
-        public static async ValueTask<FluidValue> SortNatural(FluidValue input, FilterArguments arguments, TemplateContext context)
+        public static ValueTask<FluidValue> SortNatural(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
             if (arguments.Count > 0)
             {
                 var member = arguments.At(0).ToStringValue();
-
-                var values = new List<KeyValuePair<FluidValue, object>>();
-
-                foreach (var item in input.Enumerate())
-                {
-                    values.Add(new KeyValuePair<FluidValue, object>(item, (await item.GetValueAsync(member, context)).ToObjectValue()));
-                }
-
-                var orderedValues = values
-                    .OrderBy(x => x.Value)
-                    .Select(x => x.Key)
-                    .ToArray();
-
-                return new ArrayValue(orderedValues);
+                var selector = GetPropertySelector(source, member);
+                return FluidValue.Create(source.OrderBy(selector), context.Options);
             }
             else
             {
-                return new ArrayValue(input.Enumerate().OrderBy(x => x.ToStringValue(), StringComparer.OrdinalIgnoreCase));
+                return FluidValue.Create(source.OrderBy(o => o), context.Options);
             }
         }
 
         public static ValueTask<FluidValue> Uniq(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
-            return new ArrayValue(input.Enumerate().Distinct().ToArray());
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            return FluidValue.Create(source.Distinct(), context.Options);
+        }
+
+
+        public static System.Linq.Expressions.Expression<Func<object, object>> GetPropertySelector(this IQueryable list, string property)
+        {
+            var parameterExp = System.Linq.Expressions.Expression.Parameter(list.ElementType, "type");
+            var fullExp = System.Linq.Expressions.Expression.Property(parameterExp, property);
+            return System.Linq.Expressions.Expression.Lambda<Func<object, object>>(fullExp, parameterExp);
+        }
+        public static System.Linq.Expressions.Expression<Func<object, bool>> GetPropertyPredicate(this IQueryable list, string property, object value)
+        {
+            var parameterExp = System.Linq.Expressions.Expression.Parameter(list.ElementType, "type");
+            var fullExp = System.Linq.Expressions.Expression.Equal(System.Linq.Expressions.Expression.Property(parameterExp, property), System.Linq.Expressions.Expression.Constant(value));
+            return System.Linq.Expressions.Expression.Lambda<Func<object, bool>>(fullExp, parameterExp);
         }
     }
 }

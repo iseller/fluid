@@ -15,14 +15,14 @@ namespace Fluid.Values
         private double? _count;
         private IList<T> _valueList;
 
-        public IQueryable<T> Values => this._valueList != null ? this._valueList.AsQueryable() : this._value.Take(_maxItem);
+        public IQueryable<T> Values => this._valueList != null ? this._valueList.AsQueryable() : this._value;
         public IList<T> ValueLists
         {
             get
             {
                 if (this._valueList == null)
                 {
-                    this._valueList = this.Values.ToList();
+                    this._valueList = this.Values.Take(_maxItem).ToList();
                     if (this._valueList.Count < this._maxItem)
                     {
                         this._count = this._valueList.Count;
@@ -137,7 +137,7 @@ namespace Fluid.Values
 
         public override object ToObjectValue()
         {
-            return this.ValueLists;
+            return this._value;
         }
 
         public override bool Contains(FluidValue value)
@@ -152,6 +152,7 @@ namespace Fluid.Values
 
                 return _value.Contains((T)val);
             }
+
             return false;
         }
 

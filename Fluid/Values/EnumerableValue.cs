@@ -109,7 +109,7 @@ namespace Fluid.Values
 
         public override object ToObjectValue()
         {
-            return this.ValueLists.ToArray();
+            return this._value;
         }
 
         public override bool Contains(FluidValue value)
