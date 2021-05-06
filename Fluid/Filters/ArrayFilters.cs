@@ -21,6 +21,10 @@ namespace Fluid.Filters
             filters.AddFilter("sort_natural", SortNatural);
             filters.AddFilter("uniq", Uniq);
             filters.AddFilter("where", Where);
+            filters.AddFilter("skip", Skip);
+            filters.AddFilter("take", Take);
+            filters.AddFilter("any", Any);
+            filters.AddFilter("all", All);
             return filters;
         }
 
@@ -82,11 +86,26 @@ namespace Fluid.Filters
                 return input;
             }
 
-            var list = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
-            var member = arguments.At(0).ToStringValue();
+            try
+            {
 
-            var selector = ArrayFilters.GetPropertySelector(list, member);
-            return FluidValue.Create(list.Select(selector), context.Options);
+                var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+                var member = arguments.At(0).ToStringValue();
+
+                var selector = ArrayFilters.GetPropertySelector(source, member);
+
+                var d = source.Provider.CreateQuery(
+                    System.Linq.Expressions.Expression.Call(typeof(Queryable), "Select",
+                        new Type[] { source.ElementType, selector.Body.Type },
+                        source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
+                return FluidValue.Create(d, context.Options);
+            }
+            catch (Exception ep)
+            {
+                System.Diagnostics.Debug.WriteLine(ep);
+            }
+
+            return NilValue.Instance;
         }
 
         // https://github.com/Shopify/liquid/commit/842986a9721de11e71387732be51951285225977
@@ -102,9 +121,15 @@ namespace Fluid.Filters
 
             // Second argument is the value to match, or 'true' if none is defined
             var targetValue = arguments.At(1).Or(BooleanValue.True);
-            
+
             var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
-            return FluidValue.Create(source.Where(GetPropertyPredicate(source, member, targetValue.ToObjectValue())), context.Options);
+            var predicate = GetPropertyPredicate(source, member, targetValue.ToObjectValue());
+            var d = source.Provider.CreateQuery(
+                System.Linq.Expressions.Expression.Call(typeof(Queryable), "Where",
+                    new Type[] { source.ElementType },
+                    source.Expression, System.Linq.Expressions.Expression.Quote(predicate)));
+
+            return FluidValue.Create(d, context.Options);
         }
 
         public static ValueTask<FluidValue> Reverse(FluidValue input, FilterArguments arguments, TemplateContext context)
@@ -140,7 +165,11 @@ namespace Fluid.Filters
             {
                 var member = arguments.At(0).ToStringValue();
                 var selector = GetPropertySelector(source, member);
-                return FluidValue.Create(source.OrderBy(selector), context.Options);
+                var d = source.Provider.CreateQuery(
+                    System.Linq.Expressions.Expression.Call(typeof(Queryable), "OrderBy",
+                        new Type[] { source.ElementType, selector.Body.Type },
+                        source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
+                return FluidValue.Create(d, context.Options);
             }
             else
             {
@@ -155,7 +184,11 @@ namespace Fluid.Filters
             {
                 var member = arguments.At(0).ToStringValue();
                 var selector = GetPropertySelector(source, member);
-                return FluidValue.Create(source.OrderBy(selector), context.Options);
+                var d = source.Provider.CreateQuery(
+                    System.Linq.Expressions.Expression.Call(typeof(Queryable), "OrderBy",
+                        new Type[] { source.ElementType, selector.Body.Type },
+                        source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
+                return FluidValue.Create(d, context.Options);
             }
             else
             {
@@ -169,18 +202,68 @@ namespace Fluid.Filters
             return FluidValue.Create(source.Distinct(), context.Options);
         }
 
+        public static ValueTask<FluidValue> Skip(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
 
-        public static System.Linq.Expressions.Expression<Func<object, object>> GetPropertySelector(this IQueryable list, string property)
+            var skip = arguments.At(0).Or(NumberValue.Zero);
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            return FluidValue.Create(source.Skip((int)skip.ToNumberValue()), context.Options);
+        }
+        public static ValueTask<FluidValue> Take(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+            var take = arguments.At(0).Or(NumberValue.Zero);
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            return FluidValue.Create(source.Take((int)take.ToNumberValue()), context.Options);
+        }
+        public static ValueTask<FluidValue> Any(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            return FluidValue.Create(source.Any(), context.Options);
+        }
+        public static ValueTask<FluidValue> All(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+            var member = arguments.At(0).ToStringValue();
+            var targetValue = arguments.At(1).Or(BooleanValue.True);
+
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            var predicate = GetPropertyPredicate(source, member, targetValue.ToObjectValue());
+            var d = source.Provider.CreateQuery(
+                System.Linq.Expressions.Expression.Call(typeof(Queryable), "All",
+                    new Type[] { source.ElementType },
+                    source.Expression, System.Linq.Expressions.Expression.Quote(predicate)));
+            return FluidValue.Create(d, context.Options);
+        }
+
+        public static System.Linq.Expressions.LambdaExpression GetPropertySelector(this IQueryable list, string property)
         {
             var parameterExp = System.Linq.Expressions.Expression.Parameter(list.ElementType, "type");
             var fullExp = System.Linq.Expressions.Expression.Property(parameterExp, property);
-            return System.Linq.Expressions.Expression.Lambda<Func<object, object>>(fullExp, parameterExp);
+            return System.Linq.Expressions.Expression.Lambda(fullExp, parameterExp);
         }
-        public static System.Linq.Expressions.Expression<Func<object, bool>> GetPropertyPredicate(this IQueryable list, string property, object value)
+        public static System.Linq.Expressions.LambdaExpression GetPropertyPredicate(this IQueryable list, string property, object value)
         {
             var parameterExp = System.Linq.Expressions.Expression.Parameter(list.ElementType, "type");
             var fullExp = System.Linq.Expressions.Expression.Equal(System.Linq.Expressions.Expression.Property(parameterExp, property), System.Linq.Expressions.Expression.Constant(value));
-            return System.Linq.Expressions.Expression.Lambda<Func<object, bool>>(fullExp, parameterExp);
+            return System.Linq.Expressions.Expression.Lambda(fullExp, parameterExp);
         }
     }
 }
