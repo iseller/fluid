@@ -1,28 +1,40 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text.Encodings.Web;
 
 namespace Fluid.Values
 {
-    public sealed class QueryableValue<T> : FluidValue
+    public sealed class QueryableValue : FluidValue
     {
-        private readonly IQueryable<T> _value;
+        private readonly IQueryable _value;
         private readonly TemplateOptions _option;
         private readonly int _maxItem;
         private double? _count;
-        private IList<T> _valueList;
+        private IList _valueList;
 
-        public IQueryable<T> Values => this._valueList != null ? this._valueList.AsQueryable() : this._value;
-        public IList<T> ValueLists
+        public IQueryable Values => this._valueList != null ? this._valueList.AsQueryable() : this._value;
+        public IList ValueLists
         {
             get
             {
                 if (this._valueList == null)
                 {
-                    this._valueList = this.Values.Take(_maxItem).ToList();
+                    var q = this.Values.Provider.CreateQuery(
+                        Expression.Call(
+                            typeof(Queryable), "Take",
+                            new Type[] { this.Values.ElementType },
+                            this.Values.Expression, Expression.Constant(_maxItem)));
+
+                    this._valueList = (IList)q.Provider.Execute(
+                            Expression.Call(
+                                typeof(Enumerable), "ToList",
+                                new Type[] { q.ElementType }, q.Expression));
+
                     if (this._valueList.Count < this._maxItem)
                     {
                         this._count = this._valueList.Count;
@@ -35,7 +47,7 @@ namespace Fluid.Values
 
         public override FluidValues Type => FluidValues.Array;
 
-        public QueryableValue(IQueryable<T> value, TemplateOptions option, int maxItem = 50)
+        public QueryableValue(IQueryable value, TemplateOptions option, int maxItem = 50)
         {
             _value = value;
             _option = option;
@@ -55,7 +67,10 @@ namespace Fluid.Values
                     return NumberValue.Create(this.ToNumberValue());
 
                 case "first":
-                    var first = this.Values.FirstOrDefault();
+                    var first = this.Values.Provider.Execute(Expression.Call(
+                        typeof(Queryable), "FirstOrDefault",
+                        new Type[] { this.Values.ElementType }, this.Values.Expression));
+
                     if (first != null)
                     {
                         return FluidValue.Create(first, context.Options);
@@ -63,14 +78,18 @@ namespace Fluid.Values
                     break;
 
                 case "last":
-                    T last;
+                    object last;
                     if (this._count.HasValue && this._count <= this._maxItem)
                     {
-                        last = this.Values.LastOrDefault();
+                        last = this.Values.Provider.Execute(Expression.Call(
+                            typeof(Queryable), "LastOrDefault",
+                            new Type[] { this.Values.ElementType }, this.Values.Expression));
                     }
                     else
                     {
-                        last = this._value.LastOrDefault();
+                        last = this._value.Provider.Execute(Expression.Call(
+                            typeof(Queryable), "LastOrDefault",
+                            new Type[] { this._value.ElementType }, this._value.Expression));
                     }
 
                     if (last != null)
@@ -88,14 +107,24 @@ namespace Fluid.Values
         {
             var i = (int)index.ToNumberValue();
 
-            T val;
+            object val;
             if (i < _maxItem)
             {
-                val = this.Values.Skip(i).FirstOrDefault();
+                var q = this.Values.Provider.CreateQuery(Expression.Call(
+                    typeof(Queryable), "Skip",
+                    new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(i)));
+                val = q.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "FirstOrDefault",
+                    new Type[] { q.ElementType }, q.Expression));
             }
             else
             {
-                val = _value.Skip(1).FirstOrDefault();
+                var q = _value.Provider.CreateQuery(Expression.Call(
+                    typeof(Queryable), "Skip",
+                    new Type[] { _value.ElementType }, _value.Expression, Expression.Constant(i)));
+                val = q.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "FirstOrDefault",
+                    new Type[] { q.ElementType }, q.Expression));
             }
 
             if (val != null)
@@ -115,7 +144,9 @@ namespace Fluid.Values
         {
             if (!this._count.HasValue)
             {
-                this._count = this._value.LongCount();
+                this._count = (long)_value.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "LongCount",
+                    new Type[] { _value.ElementType }, _value.Expression));
             }
             return (decimal)this._count.GetValueOrDefault(0);
         }
@@ -143,14 +174,18 @@ namespace Fluid.Values
         public override bool Contains(FluidValue value)
         {
             var val = value.ToObjectValue();
-            if (val is T)
+            if (val.GetType() == this._value.ElementType)
             {
                 if (this._count.HasValue && this._count.Value < this._maxItem)
                 {
-                    return this.Values.Contains((T)val);
+                    return (bool)this.Values.Provider.Execute(Expression.Call(
+                        typeof(Queryable), "Contains",
+                        new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(val)));
                 }
 
-                return _value.Contains((T)val);
+                return (bool)this._value.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "Contains",
+                    new Type[] { this._value.ElementType }, this._value.Expression, Expression.Constant(val)));
             }
 
             return false;
@@ -158,7 +193,7 @@ namespace Fluid.Values
 
         public override IEnumerable<FluidValue> Enumerate()
         {
-            return this.ValueLists.Select(o => FluidValue.Create(o, _option));
+            return this.ValueLists.OfType<object>().Select(o => FluidValue.Create(o, _option));
         }
 
         internal override string[] ToStringArray()
@@ -184,7 +219,7 @@ namespace Fluid.Values
         public override bool Equals(object other)
         {
             // The is operator will return false if null
-            if (other is QueryableValue<T> otherValue)
+            if (other is QueryableValue otherValue)
             {
                 return _value.Equals(otherValue._value);
             }

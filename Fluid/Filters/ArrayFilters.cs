@@ -25,6 +25,9 @@ namespace Fluid.Filters
             filters.AddFilter("take", Take);
             filters.AddFilter("any", Any);
             filters.AddFilter("all", All);
+            filters.AddFilter("intersect", Intersect);
+            filters.AddFilter("union", Union);
+            filters.AddFilter("concat", Concat);
             return filters;
         }
 
@@ -251,6 +254,63 @@ namespace Fluid.Filters
                     new Type[] { source.ElementType },
                     source.Expression, System.Linq.Expressions.Expression.Quote(predicate)));
             return FluidValue.Create(d, context.Options);
+        }
+        public static ValueTask<FluidValue> Intersect(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+            var secondInput = arguments.At(0);
+            if (secondInput.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            var second = (secondInput.ToObjectValue() as IEnumerable<object>).AsQueryable();
+
+            return FluidValue.Create(source.Intersect(second), context.Options);
+        }
+        public static ValueTask<FluidValue> Union(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+            var secondInput = arguments.At(0);
+            if (secondInput.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            var second = (secondInput.ToObjectValue() as IEnumerable<object>).AsQueryable();
+
+            return FluidValue.Create(source.Union(second), context.Options);
+        }
+        public static ValueTask<FluidValue> Except(FluidValue input, FilterArguments arguments, TemplateContext context)
+        {
+            if (input.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+            var secondInput = arguments.At(0);
+            if (secondInput.Type != FluidValues.Array)
+            {
+                return input;
+            }
+
+
+            var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
+            var second = (secondInput.ToObjectValue() as IEnumerable<object>).AsQueryable();
+
+            return FluidValue.Create(source.Except(second), context.Options);
         }
 
         public static System.Linq.Expressions.LambdaExpression GetPropertySelector(this IQueryable list, string property)
