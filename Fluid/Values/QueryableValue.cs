@@ -5,12 +5,27 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 
 namespace Fluid.Values
 {
     public sealed class QueryableValue : FluidValue
     {
+        internal static ConditionalWeakTable<IQueryable, QueryableValue> _internalHeap = new ConditionalWeakTable<IQueryable, QueryableValue>();
+        public static QueryableValue Create(IQueryable value, TemplateOptions option, int maxItem = 50)
+        {
+            QueryableValue d;
+            if (_internalHeap.TryGetValue(value, out d))
+            {
+                return d;
+            }
+
+            d = new QueryableValue(value, option, maxItem);
+            try { _internalHeap.Add(value, d); } catch { }
+            return d;
+        }
+
         private readonly IQueryable _value;
         private readonly TemplateOptions _option;
         private readonly int _maxItem;

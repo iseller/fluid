@@ -184,7 +184,7 @@ namespace Fluid.Values
                             return new ArrayValue(values);
 
                         case IQueryable queryable:
-                            return new QueryableValue(queryable, options);
+                            return QueryableValue.Create(queryable, options);
 
                         case IEnumerable enumerable:
                             return new EnumerableValue(enumerable, options);
