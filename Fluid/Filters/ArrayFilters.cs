@@ -166,12 +166,34 @@ namespace Fluid.Filters
             var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
             if (arguments.Count > 0)
             {
+                var d = source as IQueryable;
+                var isBegin = true;
+                foreach (var argument in arguments.Values)
+            {
                 var member = arguments.At(0).ToStringValue();
+                    var direction = "asc";
+
+                    if (member.Contains(":"))
+                    {
+                        var ms = member.Split(':');
+                        member = ms[1];
+                        direction = ms[0];
+                    }
+
+                    var method = isBegin ? "OrderBy" : "ThenBy";
+                    if (direction == "desc")
+                    {
+                        method += "Descending";
+                    }
+
                 var selector = GetPropertySelector(source, member);
-                var d = source.Provider.CreateQuery(
-                    System.Linq.Expressions.Expression.Call(typeof(Queryable), "OrderBy",
+                    d = source.Provider.CreateQuery(
+                        System.Linq.Expressions.Expression.Call(typeof(Queryable), method,
                         new Type[] { source.ElementType, selector.Body.Type },
                         source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
+                    isBegin = false;
+                }
+
                 return FluidValue.Create(d, context.Options);
             }
             else

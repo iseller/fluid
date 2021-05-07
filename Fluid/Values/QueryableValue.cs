@@ -30,10 +30,12 @@ namespace Fluid.Values
                             new Type[] { this.Values.ElementType },
                             this.Values.Expression, Expression.Constant(_maxItem)));
 
-                    this._valueList = (IList)q.Provider.Execute(
-                            Expression.Call(
-                                typeof(Enumerable), "ToList",
-                                new Type[] { q.ElementType }, q.Expression));
+                    var r = new List<object>();
+                    foreach (var t in q)
+                    {
+                        r.Add(t);
+                    }
+                    this._valueList = r;
 
                     if (this._valueList.Count < this._maxItem)
                     {
