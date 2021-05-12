@@ -7,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
+using System.Threading.Tasks;
 
 namespace Fluid.Values
 {
@@ -76,7 +77,7 @@ namespace Fluid.Values
             return false;
         }
 
-        protected override FluidValue GetValue(string name, TemplateContext context)
+        public override async ValueTask<FluidValue> GetValueAsync(string name, TemplateContext context)
         {
             switch (name)
             {
@@ -84,37 +85,24 @@ namespace Fluid.Values
                     return NumberValue.Create(this.ToNumberValue());
 
                 case "first":
-                    var first = this.Values.Provider.Execute(Expression.Call(
-                        typeof(Queryable), "FirstOrDefault",
-                        new Type[] { this.Values.ElementType }, this.Values.Expression));
-
-                    if (first != null)
-                    {
-                        return FluidValue.Create(first, context.Options);
-                    }
-                    break;
+                    return this.FirstOrDefault();
 
                 case "last":
-                    object last;
-                    if (this._count.HasValue && this._count <= this._maxItem)
+                    return this.LastOrDefault();
+                default:
                     {
-                        last = this.Values.Provider.Execute(Expression.Call(
-                            typeof(Queryable), "LastOrDefault",
-                            new Type[] { this.Values.ElementType }, this.Values.Expression));
-                    }
-                    else
-                    {
-                        last = this._value.Provider.Execute(Expression.Call(
-                            typeof(Queryable), "LastOrDefault",
-                            new Type[] { this._value.ElementType }, this._value.Expression));
-                    }
+                        var accessor = context.Options.MemberAccessStrategy.GetAccessor(_value.GetType(), name);
+                        if (accessor != null)
+                        {
+                            if (accessor is IAsyncMemberAccessor asyncAccessor)
+                            {
+                                return FluidValue.Create(await asyncAccessor.GetAsync(_value, name, context), context.Options);
+                            }
 
-                    if (last != null)
-                    {
-                        return FluidValue.Create(last, context.Options);
+                            return FluidValue.Create(accessor.Get(_value, name, context), context.Options);
+                        }
                     }
                     break;
-
             }
 
             return NilValue.Instance;
@@ -225,12 +213,40 @@ namespace Fluid.Values
 
         internal override FluidValue FirstOrDefault()
         {
-            return this.GetValue("first", new TemplateContext(_option));
+            var first = this.Values.Provider.Execute(Expression.Call(
+                typeof(Queryable), "FirstOrDefault",
+                new Type[] { this.Values.ElementType }, this.Values.Expression));
+
+            if (first != null)
+            {
+                return FluidValue.Create(first, _option);
+            }
+
+            return NilValue.Instance;
         }
 
         internal override FluidValue LastOrDefault()
         {
-            return this.GetValue("last", new TemplateContext(_option));
+            object last;
+            if (this._count.HasValue && this._count <= this._maxItem)
+            {
+                last = this.Values.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "LastOrDefault",
+                    new Type[] { this.Values.ElementType }, this.Values.Expression));
+            }
+            else
+            {
+                last = this._value.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "LastOrDefault",
+                    new Type[] { this._value.ElementType }, this._value.Expression));
+            }
+
+            if (last != null)
+            {
+                return FluidValue.Create(last, _option);
+            }
+
+            return NilValue.Instance;
         }
 
         public override bool Equals(object other)
