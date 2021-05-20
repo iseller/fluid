@@ -108,33 +108,51 @@ namespace Fluid.Values
             return NilValue.Instance;
         }
 
-        protected override FluidValue GetIndex(FluidValue index, TemplateContext context)
+        public override async ValueTask<FluidValue> GetIndexAsync(FluidValue index, TemplateContext context)
         {
-            var i = (int)index.ToNumberValue();
+            if (index is NumberValue)
+            {
+                var i = (int)index.ToNumberValue();
 
-            object val;
-            if (i < _maxItem)
-            {
-                var q = this.Values.Provider.CreateQuery(Expression.Call(
-                    typeof(Queryable), "Skip",
-                    new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(i)));
-                val = q.Provider.Execute(Expression.Call(
-                    typeof(Queryable), "FirstOrDefault",
-                    new Type[] { q.ElementType }, q.Expression));
-            }
-            else
-            {
-                var q = _value.Provider.CreateQuery(Expression.Call(
-                    typeof(Queryable), "Skip",
-                    new Type[] { _value.ElementType }, _value.Expression, Expression.Constant(i)));
-                val = q.Provider.Execute(Expression.Call(
-                    typeof(Queryable), "FirstOrDefault",
-                    new Type[] { q.ElementType }, q.Expression));
+                object val;
+                if (i < _maxItem)
+                {
+                    var q = this.Values.Provider.CreateQuery(Expression.Call(
+                        typeof(Queryable), "Skip",
+                        new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(i)));
+                    val = q.Provider.Execute(Expression.Call(
+                        typeof(Queryable), "FirstOrDefault",
+                        new Type[] { q.ElementType }, q.Expression));
+                }
+                else
+                {
+                    var q = _value.Provider.CreateQuery(Expression.Call(
+                        typeof(Queryable), "Skip",
+                        new Type[] { _value.ElementType }, _value.Expression, Expression.Constant(i)));
+                    val = q.Provider.Execute(Expression.Call(
+                        typeof(Queryable), "FirstOrDefault",
+                        new Type[] { q.ElementType }, q.Expression));
+                }
+
+                if (val != null)
+                {
+                    return FluidValue.Create(val, context.Options);
+                }
             }
 
-            if (val != null)
+            var name = index.ToStringValue();
+            if (!string.IsNullOrEmpty(name))
             {
-                return FluidValue.Create(val, context.Options);
+                var accessor = context.Options.MemberAccessStrategy.GetAccessor(_value.GetType(), name);
+                if (accessor != null)
+                {
+                    if (accessor is IAsyncMemberAccessor asyncAccessor)
+                    {
+                        return FluidValue.Create(await asyncAccessor.GetAsync(_value, name, context), context.Options);
+                    }
+
+                    return FluidValue.Create(accessor.Get(_value, name, context), context.Options);
+                }
             }
 
             return NilValue.Instance;
