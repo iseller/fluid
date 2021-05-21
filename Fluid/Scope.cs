@@ -8,15 +8,17 @@ namespace Fluid
     {
         private readonly Dictionary<string, FluidValue> _properties = new Dictionary<string, FluidValue>();
         private readonly Scope _parent;
+        private readonly bool _checkParent;
 
         public Scope()
         {
             _parent = null;
         }
 
-        public Scope(Scope parent)
+        public Scope(Scope parent, bool checkParent = true)
         {
             _parent = parent;
+            _checkParent = checkParent;
         }
 
         public IEnumerable<string> Properties => _properties.Keys;
@@ -39,7 +41,7 @@ namespace Fluid
                 return result;
             }
 
-            return _parent != null
+            return _checkParent && _parent != null
                 ? _parent.GetValue(name)
                 : NilValue.Instance;
         }
@@ -55,9 +57,9 @@ namespace Fluid
             _properties[name] = value;
         }
 
-        public Scope EnterChildScope()
+        public Scope EnterChildScope(bool keepParent = true)
         {
-            return new Scope(this);
+            return new Scope(this, keepParent);
         }
 
         public Scope ReleaseScope()

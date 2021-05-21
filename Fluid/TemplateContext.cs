@@ -97,16 +97,16 @@ namespace Fluid
 
         /// <summary>
         /// Creates a new isolated scope. After than any value added to this content object will be released once
-        /// <see cref="ReleaseScope" /> is called. The previous scope is linked such that its values are still available.
+        /// <see cref="ReleaseScope" /> is called. If keep current then the previous scope is linked such that its values are still available.
         /// </summary>
-        public void EnterChildScope()
+        public void EnterChildScope(bool keepCurrent = true)
         {
             if (Options.MaxRecursion > 0 && _recursion++ > Options.MaxRecursion)
             {
                 throw new InvalidOperationException("The maximum level of recursion has been reached. Your script must have a cyclic include statement.");
             }
 
-            LocalScope = LocalScope.EnterChildScope();
+            LocalScope = LocalScope.EnterChildScope(keepCurrent);
         }
 
         /// <summary>
