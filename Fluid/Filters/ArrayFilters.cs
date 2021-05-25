@@ -95,7 +95,7 @@ namespace Fluid.Filters
                 var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
                 var member = arguments.At(0).ToStringValue();
 
-                var selector = ArrayFilters.GetPropertySelector(source, member);
+                var selector = ArrayFilters.GetPropertySelector(source.ElementType, member);
 
                 var d = source.Provider.CreateQuery(
                     System.Linq.Expressions.Expression.Call(typeof(Queryable), "Select",
@@ -126,7 +126,7 @@ namespace Fluid.Filters
             var targetValue = arguments.At(1).Or(BooleanValue.True);
 
             var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
-            var predicate = GetPropertyPredicate(source, member, targetValue.ToObjectValue());
+            var predicate = GetPropertyPredicate(source.ElementType, member, targetValue.ToObjectValue());
             var d = source.Provider.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Where",
                     new Type[] { source.ElementType },
@@ -169,8 +169,8 @@ namespace Fluid.Filters
                 var d = source as IQueryable;
                 var isBegin = true;
                 foreach (var argument in arguments.Values)
-            {
-                var member = arguments.At(0).ToStringValue();
+                {
+                    var member = arguments.At(0).ToStringValue();
                     var direction = "asc";
 
                     if (member.Contains(":"))
@@ -186,7 +186,7 @@ namespace Fluid.Filters
                         method += "Descending";
                     }
 
-                var selector = GetPropertySelector(source, member);
+                    var selector = GetPropertySelector(source.ElementType, member);
                     d = source.Provider.CreateQuery(
                         System.Linq.Expressions.Expression.Call(typeof(Queryable), method,
                         new Type[] { source.ElementType, selector.Body.Type },
@@ -208,7 +208,7 @@ namespace Fluid.Filters
             if (arguments.Count > 0)
             {
                 var member = arguments.At(0).ToStringValue();
-                var selector = GetPropertySelector(source, member);
+                var selector = GetPropertySelector(source.ElementType, member);
                 var d = source.Provider.CreateQuery(
                     System.Linq.Expressions.Expression.Call(typeof(Queryable), "OrderBy",
                         new Type[] { source.ElementType, selector.Body.Type },
@@ -270,7 +270,7 @@ namespace Fluid.Filters
             var targetValue = arguments.At(1).Or(BooleanValue.True);
 
             var source = (input.ToObjectValue() as IEnumerable<object>).AsQueryable();
-            var predicate = GetPropertyPredicate(source, member, targetValue.ToObjectValue());
+            var predicate = GetPropertyPredicate(source.ElementType, member, targetValue.ToObjectValue());
             var d = source.Provider.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "All",
                     new Type[] { source.ElementType },
@@ -335,16 +335,75 @@ namespace Fluid.Filters
             return FluidValue.Create(source.Except(second), context.Options);
         }
 
-        public static System.Linq.Expressions.LambdaExpression GetPropertySelector(this IQueryable list, string property)
+        public static System.Linq.Expressions.LambdaExpression GetPropertySelector(Type type, string property)
         {
-            var parameterExp = System.Linq.Expressions.Expression.Parameter(list.ElementType, "type");
-            var fullExp = System.Linq.Expressions.Expression.Property(parameterExp, property);
+            var parameterExp = System.Linq.Expressions.Expression.Parameter(type, "type");
+            System.Linq.Expressions.Expression fullExp = parameterExp;
+
+            do
+            {
+                var index = property.IndexOf(".");
+                string prop;
+                if (index < 0)
+                {
+                    prop = property;
+                    property = null;
+                }
+                else
+                {
+                    prop = property.Substring(0, index);
+                    property = property.Substring(index + 1);
+                }
+
+                if (!string.IsNullOrEmpty(prop))
+                {
+                    var propertyInfo = type.GetProperty($"z_{prop}") ?? type.GetProperty(prop);
+                    fullExp = System.Linq.Expressions.Expression.Property(fullExp, propertyInfo.Name);
+                }
+            } while (!string.IsNullOrEmpty(property));
+
             return System.Linq.Expressions.Expression.Lambda(fullExp, parameterExp);
         }
-        public static System.Linq.Expressions.LambdaExpression GetPropertyPredicate(this IQueryable list, string property, object value)
+        public static System.Linq.Expressions.LambdaExpression GetPropertyPredicate(Type type, string property, object value)
         {
-            var parameterExp = System.Linq.Expressions.Expression.Parameter(list.ElementType, "type");
-            var fullExp = System.Linq.Expressions.Expression.Equal(System.Linq.Expressions.Expression.Property(parameterExp, property), System.Linq.Expressions.Expression.Constant(value));
+            var parameterExp = System.Linq.Expressions.Expression.Parameter(type, "type");
+            System.Linq.Expressions.Expression fullExp = parameterExp;
+
+            do
+            {
+                var index = property.IndexOf(".");
+                string prop;
+                if (index < 0)
+                {
+                    prop = property;
+                    property = null;
+                }
+                else
+                {
+                    prop = property.Substring(0, index);
+                    property = property.Substring(index + 1);
+                }
+
+                System.Reflection.PropertyInfo propertyInfo = null;
+                if (!string.IsNullOrEmpty(prop))
+                {
+                    propertyInfo = type.GetProperty($"z_{prop}") ?? type.GetProperty(prop);
+                    fullExp = System.Linq.Expressions.Expression.Property(fullExp, propertyInfo.Name);
+                }
+
+                if (propertyInfo != null && propertyInfo.PropertyType != typeof(string) && typeof(System.Collections.IEnumerable).IsAssignableFrom(propertyInfo.PropertyType))
+                {
+                    var itemType = propertyInfo.PropertyType.GenericTypeArguments.FirstOrDefault();
+                    var predicate = GetPropertyPredicate(itemType, property, value);
+                    fullExp = System.Linq.Expressions.Expression.Call(typeof(Enumerable), "Any", new[] { itemType }, fullExp, predicate);
+                    break;
+                }
+                else if (string.IsNullOrEmpty(property))
+                {
+                    fullExp = System.Linq.Expressions.Expression.Equal(fullExp, System.Linq.Expressions.Expression.Constant(value));
+                }
+            } while (!string.IsNullOrEmpty(property));
+
             return System.Linq.Expressions.Expression.Lambda(fullExp, parameterExp);
         }
     }
