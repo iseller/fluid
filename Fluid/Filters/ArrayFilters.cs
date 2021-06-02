@@ -390,6 +390,15 @@ namespace Fluid.Filters
                     propertyInfo = type.GetProperty($"z_{prop}") ?? type.GetProperty(prop);
                     fullExp = System.Linq.Expressions.Expression.Property(fullExp, propertyInfo.Name);
                 }
+                else
+                {
+                    propertyInfo = type.GetProperty("value");
+                    if (propertyInfo != null)
+                    {
+                        prop = propertyInfo.Name;
+                        fullExp = System.Linq.Expressions.Expression.Property(fullExp, propertyInfo.Name);
+                    }
+                }
 
                 if (propertyInfo != null && propertyInfo.PropertyType != typeof(string) && typeof(System.Collections.IEnumerable).IsAssignableFrom(propertyInfo.PropertyType))
                 {
