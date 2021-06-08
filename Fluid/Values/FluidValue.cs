@@ -165,6 +165,13 @@ namespace Fluid.Values
 
                         case IDictionary otherDictionary:
                             return new DictionaryValue(new DictionaryDictionaryFluidIndexable(otherDictionary, options));
+                        
+                        case DictionaryDictionaryFluidIndexable dindexable:
+                            return new DictionaryValue(dindexable);
+                        case FluidValueDictionaryFluidIndexable findexable:
+                            return new DictionaryValue(findexable);
+                        case ObjectDictionaryFluidIndexable dindexable:
+                            return new DictionaryValue(oindexable);
 
                         case FluidValue[] array:
                             return new ArrayValue(array);
