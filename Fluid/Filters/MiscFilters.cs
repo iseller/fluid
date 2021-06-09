@@ -97,6 +97,23 @@ namespace Fluid.Filters
 
         public static ValueTask<FluidValue> Default(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
+            if (arguments.HasNamed("ignore_empty"))
+            {
+                var ignore_empty = arguments["ignore_empty"];
+                if (ignore_empty != null && ignore_empty != NilValue.Instance && ignore_empty != NilValue.Empty && ignore_empty.ToBooleanValue() == false)
+                {
+                    if (input is StringValue && (input as StringValue).ToStringValue() == string.Empty)
+                    {
+                        return input;
+                    }
+                }
+            }
+
+            if (input is StringValue && !input.ToBooleanValue())
+            {
+                return arguments.At(0);
+            }
+
             return input.Or(arguments.At(0));
         }
 
@@ -110,7 +127,7 @@ namespace Fluid.Filters
         public static ValueTask<FluidValue> Compact(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
             var compacted = new List<FluidValue>();
-            foreach(var value in input.Enumerate())
+            foreach (var value in input.Enumerate())
             {
                 if (!value.IsNil())
                 {
@@ -272,54 +289,54 @@ namespace Fluid.Filters
                                 break;
 
                             case 'B':
-                            {
-                                var monthName = context.CultureInfo.DateTimeFormat.MonthNames[value.Month - 1];
-                                result.Append(upperCaseFlag ? monthName.ToUpper() : monthName);
-                                break;
-                            }
+                                {
+                                    var monthName = context.CultureInfo.DateTimeFormat.MonthNames[value.Month - 1];
+                                    result.Append(upperCaseFlag ? monthName.ToUpper() : monthName);
+                                    break;
+                                }
                             case 'c':
-                            {
-                                // c is defined as "%a %b %e %T %Y" but it's also supposed to be locale aware, so we are using the 
-                                // C# standard format instead
-                                result.Append(upperCaseFlag ? value.ToString("F", context.CultureInfo).ToUpper() : value.ToString("F", context.CultureInfo));
-                                break;
-                            }
+                                {
+                                    // c is defined as "%a %b %e %T %Y" but it's also supposed to be locale aware, so we are using the 
+                                    // C# standard format instead
+                                    result.Append(upperCaseFlag ? value.ToString("F", context.CultureInfo).ToUpper() : value.ToString("F", context.CultureInfo));
+                                    break;
+                                }
                             case 'C': result.Append(value.Year / 100); break;
                             case 'd':
-                            {
-                                var day = value.Day.ToString(context.CultureInfo);
-                                if (useSpaceForPaddingFlag)
                                 {
-                                    result.Append(day.PadLeft(2, ' '));
+                                    var day = value.Day.ToString(context.CultureInfo);
+                                    if (useSpaceForPaddingFlag)
+                                    {
+                                        result.Append(day.PadLeft(2, ' '));
+                                    }
+                                    else if (removeLeadingZerosFlag)
+                                    {
+                                        result.Append(day);
+                                    }
+                                    else
+                                    {
+                                        result.Append(day.PadLeft(2, '0'));
+                                    }
+                                    break;
                                 }
-                                else if (removeLeadingZerosFlag)
-                                {
-                                    result.Append(day);
-                                }
-                                else
-                                {
-                                    result.Append(day.PadLeft(2, '0'));
-                                }
-                                break;
-                            }
                             case 'D':
-                            {
-                                
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%m/%d/%y", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%m/%d/%y", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             case 'e':
                                 result.Append(value.Day.ToString(context.CultureInfo).PadLeft(2, ' '));
                                 break;
                             case 'F':
-                            {
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%Y-%m-%d", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%Y-%m-%d", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             case 'H':
                                 result.Append(value.ToString("HH"));
                                 break;
@@ -351,55 +368,55 @@ namespace Fluid.Filters
                             case 'p': result.Append(value.ToString("tt", context.CultureInfo).ToUpper()); break;
                             case 'P': result.Append(value.ToString("tt", context.CultureInfo).ToLower()); break;
                             case 'r':
-                            {
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%I:%M:%S %p", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%I:%M:%S %p", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             case 'R':
-                            {
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%H:%M", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%H:%M", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             case 's': result.Append(value.ToUnixTimeSeconds()); break;
                             case 'S':
                                 result.Append(value.Second.ToString(context.CultureInfo).PadLeft(2, '0'));
                                 break;
                             case 'x':
-                            {
-                                // x is defined as "%m/%d/%y" but it's also supposed to be locale aware, so we are using the 
-                                // C# short date pattern standard format instead
+                                {
+                                    // x is defined as "%m/%d/%y" but it's also supposed to be locale aware, so we are using the 
+                                    // C# short date pattern standard format instead
 
-                                result.Append(upperCaseFlag ? value.ToString("d", context.CultureInfo).ToUpper() : value.ToString("d", context.CultureInfo));
-                                break;
-                            }
+                                    result.Append(upperCaseFlag ? value.ToString("d", context.CultureInfo).ToUpper() : value.ToString("d", context.CultureInfo));
+                                    break;
+                                }
                             case 'X':
-                            {
-                                // X is defined as "%T" but it's also supposed to be locale aware, so we are using the 
-                                // C# short time pattern standard format instead
+                                {
+                                    // X is defined as "%T" but it's also supposed to be locale aware, so we are using the 
+                                    // C# short time pattern standard format instead
 
-                                result.Append(upperCaseFlag ? value.ToString("t", context.CultureInfo).ToUpper() : value.ToString("t", context.CultureInfo));
-                                break;
-                            }
+                                    result.Append(upperCaseFlag ? value.ToString("t", context.CultureInfo).ToUpper() : value.ToString("t", context.CultureInfo));
+                                    break;
+                                }
                             case 'T':
-                            {
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%H:%M:%S", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%H:%M:%S", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             case 'u': result.Append((int)value.DayOfWeek); break;
                             case 'U': result.Append(context.CultureInfo.Calendar.GetWeekOfYear(value.DateTime, CalendarWeekRule.FirstDay, DayOfWeek.Sunday).ToString().PadLeft(2, '0')); break;
                             case 'v':
-                            {
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%e-%b-%Y", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%e-%b-%Y", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             case 'V': result.Append((value.DayOfYear / 7 + 1).ToString(context.CultureInfo).PadLeft(2, '0')); break;
                             case 'W': result.Append(context.CultureInfo.Calendar.GetWeekOfYear(value.DateTime, CalendarWeekRule.FirstDay, DayOfWeek.Monday).ToString().PadLeft(2, '0')); break;
                             case 'y':
@@ -409,22 +426,22 @@ namespace Fluid.Filters
                                 result.Append(value.Year.ToString().PadLeft(4, '0'));
                                 break;
                             case 'z':
-                            {
-                                var zzz = value.ToString("zzz", context.CultureInfo);
-                                result.Append(useColonsForZeeDirectiveFlag ? zzz : zzz.Replace(":", ""));
-                                break;
-                            }
+                                {
+                                    var zzz = value.ToString("zzz", context.CultureInfo);
+                                    result.Append(useColonsForZeeDirectiveFlag ? zzz : zzz.Replace(":", ""));
+                                    break;
+                                }
                             case 'Z':
                                 result.Append(value.ToString("zzz", context.CultureInfo));
                                 break;
                             case '%': result.Append('%'); break;
                             case '+':
-                            {
-                                var sb = new StringBuilder();
-                                ForStrf(value, "%a %b %e %H:%M:%S %Z %Y", sb);
-                                result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
-                                break;
-                            }
+                                {
+                                    var sb = new StringBuilder();
+                                    ForStrf(value, "%a %b %e %H:%M:%S %Z %Y", sb);
+                                    result.Append(upperCaseFlag ? sb.ToString().ToUpper() : sb.ToString());
+                                    break;
+                                }
                             default: result.Append('%').Append(c); break;
                         }
 

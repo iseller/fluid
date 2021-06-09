@@ -115,24 +115,26 @@ namespace Fluid.Values
                 var i = (int)index.ToNumberValue();
 
                 object val;
+                IQueryable q;
                 if (i < _maxItem)
                 {
-                    var q = this.Values.Provider.CreateQuery(Expression.Call(
-                        typeof(Queryable), "Skip",
-                        new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(i)));
-                    val = q.Provider.Execute(Expression.Call(
-                        typeof(Queryable), "FirstOrDefault",
-                        new Type[] { q.ElementType }, q.Expression));
+                    q = this.Values as IQueryable;
                 }
                 else
                 {
-                    var q = _value.Provider.CreateQuery(Expression.Call(
-                        typeof(Queryable), "Skip",
-                        new Type[] { _value.ElementType }, _value.Expression, Expression.Constant(i)));
-                    val = q.Provider.Execute(Expression.Call(
-                        typeof(Queryable), "FirstOrDefault",
-                        new Type[] { q.ElementType }, q.Expression));
+                    q = _value as IQueryable;
                 }
+
+                if (i > 0)
+                {
+                    q = this.Values.Provider.CreateQuery(Expression.Call(
+                        typeof(Queryable), "Skip",
+                        new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(i)));
+                }
+
+                val = q.Provider.Execute(Expression.Call(
+                    typeof(Queryable), "FirstOrDefault",
+                    new Type[] { q.ElementType }, q.Expression));
 
                 if (val != null)
                 {
@@ -170,6 +172,7 @@ namespace Fluid.Values
                 this._count = (long)_value.Provider.Execute(Expression.Call(
                     typeof(Queryable), "LongCount",
                     new Type[] { _value.ElementType }, _value.Expression));
+
             }
             return (decimal)this._count.GetValueOrDefault(0);
         }
