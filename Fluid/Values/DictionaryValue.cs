@@ -84,7 +84,11 @@ namespace Fluid.Values
             {
                 if (!_value.TryGetValue(name, out var fluidValue))
                 {
-                    return new ValueTask<FluidValue>(NilValue.Instance);
+                    var pascalName = System.Text.RegularExpressions.Regex.Replace(name, "(^|_)([a-z])", (m) => m.Groups[2].Value.ToUpper());
+                    if (!_value.TryGetValue(pascalName, out fluidValue))
+                    {
+                        return new ValueTask<FluidValue>(NilValue.Instance);
+                    }
                 }
 
                 return new ValueTask<FluidValue>(fluidValue);
@@ -147,7 +151,7 @@ namespace Fluid.Values
             foreach (var key in _value.Keys)
             {
                 _value.TryGetValue(key, out var value);
-                yield return new ArrayValue(new[] { new StringValue(key),  value });
+                yield return new ArrayValue(new[] { new StringValue(key), value });
             }
         }
 
