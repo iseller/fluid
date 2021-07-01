@@ -182,14 +182,6 @@ namespace Fluid.Values
                         case IEnumerable<FluidValue> enumerable:
                             return new ArrayValue(enumerable);
 
-                        case IList list:
-                            var values = new List<FluidValue>(list.Count);
-                            foreach (var item in list)
-                            {
-                                values.Add(Create(item, options));
-                            }
-                            return new ArrayValue(values);
-
                         case IQueryable queryable:
                             return QueryableValue.Create(queryable, options);
 
