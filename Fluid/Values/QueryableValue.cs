@@ -36,12 +36,7 @@ namespace Fluid.Values
                             new Type[] { this.Values.ElementType },
                             this.Values.Expression, Expression.Constant(_maxItem)));
 
-                    var r = new List<object>();
-                    foreach (var t in q)
-                    {
-                        r.Add(t);
-                    }
-                    this._valueList = r;
+                    this._valueList = Activator.CreateInstance(typeof(List<>).MakeGenericType(q.ElementType), q) as IList;
 
                     if (this._valueList.Count < this._maxItem)
                     {
