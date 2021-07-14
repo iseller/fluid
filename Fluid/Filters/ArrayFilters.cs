@@ -126,9 +126,7 @@ namespace Fluid.Filters
 
             // First argument is the property name to match
             var member = arguments.At(0).ToStringValue();
-
-            // Second argument is the value to match, or 'true' if none is defined
-            var targetValue = arguments.At(1).Or(BooleanValue.True);
+            var targetValue = arguments.At(1);
 
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var predicate = GetPropertyPredicate(source.ElementType, member, targetValue.ToObjectValue());
@@ -472,6 +470,12 @@ namespace Fluid.Filters
                     }
                     else
                     {
+                        bool canBeNull = !propertyInfo.PropertyType.IsValueType || Nullable.GetUnderlyingType(propertyInfo.PropertyType) != null;
+                        if (value == null && !canBeNull)
+                        {
+                            value = Activator.CreateInstance(propertyInfo.PropertyType);
+                        }
+
                         fullExp = System.Linq.Expressions.Expression.Equal(fullExp, System.Linq.Expressions.Expression.Constant(value));
                     }
                 }
