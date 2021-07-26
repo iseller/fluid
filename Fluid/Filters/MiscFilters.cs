@@ -108,13 +108,13 @@ namespace Fluid.Filters
                     }
                 }
             }
-
-            if (input is StringValue && !input.ToBooleanValue())
+            
+            if (input.IsNil() || input == BooleanValue.False || EmptyValue.Instance.Equals(input))
             {
                 return arguments.At(0);
             }
-
-            return input.Or(arguments.At(0));
+            
+            return input;
         }
 
         public static ValueTask<FluidValue> Raw(FluidValue input, FilterArguments arguments, TemplateContext context)
@@ -554,7 +554,7 @@ namespace Fluid.Filters
             return true;
         }
 
-        private static async ValueTask WriteJson(Utf8JsonWriter writer, FluidValue input, TemplateContext ctx)
+        private static async ValueTask WriteJson(Utf8JsonWriter writer, FluidValue input, TemplateContext ctx, HashSet<object> stack = null)
         {
             switch (input.Type)
             {
@@ -626,9 +626,22 @@ namespace Fluid.Filters
                                 value = access.Get(obj, name, ctx);
                             }
 
+                            stack ??= new HashSet<object>();
+                            if (stack.Contains(value))
+                            {
+                                value = "circular reference detected.";
+                            }
+
                             var fluidValue = FluidValue.Create(value, ctx.Options);
+                            if (fluidValue.IsNil())
+                            {
+                                continue;
+                            }
+
                             writer.WritePropertyName(name);
-                            await WriteJson(writer, fluidValue, ctx);
+                            stack.Add(obj);
+                            await WriteJson(writer, fluidValue, ctx, stack);
+                            stack.Remove(obj);
                         }
 
                         writer.WriteEndObject();

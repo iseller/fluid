@@ -14,7 +14,11 @@ namespace Fluid.Tests
 {
     public class TemplateTests
     {
-        static FluidParser _parser = new FluidParser();
+#if COMPILED
+        private static FluidParser _parser = new FluidParser().Compile();
+#else
+        private static FluidParser _parser = new FluidParser();
+#endif
 
         private object _products = new []
         {
@@ -205,13 +209,13 @@ namespace Fluid.Tests
         [Fact]
         public async Task ShouldEvaluateObjectProperty()
         {
-            _parser.TryParse("{{ p.Name }}", out var template, out var error);
+            _parser.TryParse("{{ p.Firstname }}", out var template, out var error);
 
             var options = new TemplateOptions();
             options.MemberAccessStrategy.Register<Person>();
 
             var context = new TemplateContext(options);
-            context.SetValue("p", new Person { Name = "John" });
+            context.SetValue("p", new Person { Firstname = "John" });
             
 
             var result = await template.RenderAsync(context);
@@ -280,11 +284,11 @@ namespace Fluid.Tests
         [Fact]
         public async Task ShouldEvaluateInheritedObjectProperty()
         {
-            _parser.TryParse("{{ e.Name }} {{ e.Salary }}", out var template, out var error);
+            _parser.TryParse("{{ e.Firstname }} {{ e.Salary }}", out var template, out var error);
 
             var options = new TemplateOptions();
             var context = new TemplateContext(options);
-            context.SetValue("e", new Employee { Name = "John", Salary = 550 });
+            context.SetValue("e", new Employee { Firstname = "John", Salary = 550 });
             options.MemberAccessStrategy.Register<Employee>();
 
             var result = await template.RenderAsync(context);
@@ -294,11 +298,11 @@ namespace Fluid.Tests
         [Fact]
         public async Task ShouldNotAllowNotRegisteredMember()
         {
-            _parser.TryParse("{{ c.Director.Name }} {{ c.Director.Salary }}", out var template, out var error);
+            _parser.TryParse("{{ c.Director.Firstname }} {{ c.Director.Salary }}", out var template, out var error);
 
             var options = new TemplateOptions();
             var context = new TemplateContext(options);
-            context.SetValue("c", new Company { Director = new Employee { Name = "John", Salary = 550 } });
+            context.SetValue("c", new Company { Director = new Employee { Firstname = "John", Salary = 550 } });
             options.MemberAccessStrategy.Register<Company>();
 
             var result = await template.RenderAsync(context);
@@ -310,11 +314,11 @@ namespace Fluid.Tests
         {
             // The Employee class is not registered, hence any access to its properties should return nothing
             // but the Person class is registered, so Name should be available
-            _parser.TryParse("{{ c.Director.Name }} {{ c.Director.Salary }}", out var template, out var error);
+            _parser.TryParse("{{ c.Director.Firstname }} {{ c.Director.Salary }}", out var template, out var error);
 
             var options = new TemplateOptions();
             var context = new TemplateContext(options);
-            context.SetValue("c", new Company { Director = new Employee { Name = "John", Salary = 550 } });
+            context.SetValue("c", new Company { Director = new Employee { Firstname = "John", Salary = 550 } });
             options.MemberAccessStrategy.Register<Company>();
             options.MemberAccessStrategy.Register<Person>();
 
@@ -367,6 +371,8 @@ namespace Fluid.Tests
         [Theory]
         [InlineData(@"{%cycle 'a', 'b'%}{%cycle 'a', 'b'%}{%cycle 'a', 'b'%}", "aba")]
         [InlineData(@"{%cycle x:'a', 'b'%}{%cycle 'a', 'b'%}{%cycle x:'a', 'b'%}", "aab")]
+        [InlineData(@"{%cycle 2:'a', 'b'%}{%cycle '2': 'a', 'b'%}", "ab")]
+        [InlineData(@"{%cycle 'a', 'b'%}{%cycle foo: 'a', 'b'%}", "ab")]
         public Task ShouldEvaluateCycleStatement(string source, string expected)
         {
             return CheckAsync(source, expected, ctx => { ctx.SetValue("x", 3); });
@@ -761,12 +767,12 @@ shape: '{{ shape }}'");
         [Fact]
         public async Task IgnoreCasing()
         {
-            _parser.TryParse("{{ p.NaMe }}", out var template, out var error);
+            _parser.TryParse("{{ p.Firstname }}", out var template, out var error);
 
 
             var options = new TemplateOptions();
             var context = new TemplateContext(options);
-            context.SetValue("p", new Person { Name = "John" });
+            context.SetValue("p", new Person { Firstname = "John" });
             options.MemberAccessStrategy.IgnoreCasing = true;
             options.MemberAccessStrategy.Register<Person>();
 
@@ -916,6 +922,99 @@ after
 ";
 
             await CheckAsync(source, expected);
+        }
+
+        [Fact]
+        public async Task DefaultMemberStrategyShouldSupportCamelCase()
+        {
+            var model = new { FirstName = "Sebastien" };
+            var source = "{{ firstName }}";
+            var expected = "Sebastien";
+
+            _parser.TryParse(source, out var template, out var error);
+
+            var options = new TemplateOptions();
+            options.MemberAccessStrategy = new DefaultMemberAccessStrategy { MemberNameStrategy = MemberNameStrategies.CamelCase };
+            var context = new TemplateContext(model, options);
+
+            var result = await template.RenderAsync(context);
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public async Task DefaultMemberStrategyShouldSupportSnakeCase()
+        {
+            var model = new { FirstName = "Sebastien" };
+            var source = "{{ first_name }}";
+            var expected = "Sebastien";
+
+            _parser.TryParse(source, out var template, out var error);
+
+            var options = new TemplateOptions();
+            options.MemberAccessStrategy = new DefaultMemberAccessStrategy { MemberNameStrategy = MemberNameStrategies.SnakeCase };
+            var context = new TemplateContext(model, options);
+
+            var result = await template.RenderAsync(context);
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task UnsafeMemberStrategyShouldSupportCamelCase(bool registerModelType)
+        {
+            var model = new { FirstName = "Sebastien" };
+            var source = "{{ firstName }}";
+            var expected = "Sebastien";
+
+            _parser.TryParse(source, out var template, out var error);
+
+            var options = new TemplateOptions();
+            options.MemberAccessStrategy = new UnsafeMemberAccessStrategy { MemberNameStrategy = MemberNameStrategies.CamelCase };
+            var context = new TemplateContext(model, options, registerModelType);
+
+            var result = await template.RenderAsync(context);
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task UnsafeMemberStrategyShouldSupportSnakeCase(bool registerModelType)
+        {
+            var model = new { FirstName = "Sebastien" };
+            var source = "{{ first_name }}";
+            var expected = "Sebastien";
+
+            _parser.TryParse(source, out var template, out var error);
+
+            var options = new TemplateOptions();
+            options.MemberAccessStrategy = new UnsafeMemberAccessStrategy { MemberNameStrategy = MemberNameStrategies.SnakeCase };
+            var context = new TemplateContext(model, options, registerModelType);
+
+            var result = await template.RenderAsync(context);
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public async Task ShouldIterateOnDictionaries()
+        {
+            var model = new
+            {
+                Capitals = new Dictionary<string, string> { { "France", "Paris" }, { "Spain", "Madrid" }, { "Italy", "Rome" } }
+            };
+
+            var source = "{% for i in Capitals %}{{ Capitals[i.first] }}{{ i[1] }}{% endfor %}";
+            var expected = "ParisParisMadridMadridRomeRome";
+
+            _parser.TryParse(source, out var template, out var error);
+
+            var options = new TemplateOptions();
+            options.MemberAccessStrategy = UnsafeMemberAccessStrategy.Instance;
+            var context = new TemplateContext(model, options);
+
+            var result = await template.RenderAsync(context);
+            Assert.Equal(expected, result);
         }
     }
 }

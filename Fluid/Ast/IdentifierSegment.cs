@@ -6,8 +6,13 @@ namespace Fluid.Ast
 {
     public class IdentifierSegment : MemberSegment
     {
-        private IMemberAccessor _accessor;
-        private Type _type;
+        private class AccessorCache
+        {
+            public Type Type;
+            public IMemberAccessor Accessor;
+        }
+
+        private AccessorCache _accessor = new AccessorCache();
 
         public IdentifierSegment(string identifier)
         {
@@ -39,25 +44,39 @@ namespace Fluid.Ast
             {
                 // Check for a custom registration
                 var modelType = context.Model.GetType();
-                if (modelType != _type)
-                {
-                    _accessor = context.Options.MemberAccessStrategy.GetAccessor(modelType, Identifier);
-                    _accessor ??= MemberAccessStrategyExtensions.GetNamedAccessor(modelType, Identifier, MemberNameStrategies.Default);
 
-                    if (_accessor != null)
+                // Make a copy of the cached accessor since multiple threads might run the same Statement instance
+                // with different model types
+
+                var localAccessor = _accessor;
+
+                // The cached accessor might differ from the one that needs to be used if the type of the mode is different
+                // from the previous invocation
+
+                if (localAccessor.Type != modelType)
+                {
+                    localAccessor.Accessor = context.Options.MemberAccessStrategy.GetAccessor(modelType, Identifier);
+
+                    // We should only build the accessor of the Model's properties if the content is not preventing it.
+                    if (context.AllowModelMembers)
                     {
-                        _type = modelType;
+                        localAccessor.Accessor ??= MemberAccessStrategyExtensions.GetNamedAccessor(modelType, Identifier, context.Options.MemberAccessStrategy.MemberNameStrategy);
                     }
+
+                    // Update the local type even if _accessor is null since it means there is no such property on this type
+                    localAccessor.Type = modelType;
+
+                    _accessor = localAccessor;
                 }
 
-                if (_accessor != null)
+                if (localAccessor.Accessor != null)
                 {
-                    if (_accessor is IAsyncMemberAccessor asyncAccessor)
+                    if (localAccessor.Accessor is IAsyncMemberAccessor asyncAccessor)
                     {
                         return Awaited(asyncAccessor, context, Identifier);
                     }
 
-                    return new ValueTask<FluidValue>(FluidValue.Create(_accessor.Get(context.Model, Identifier, context), context.Options));
+                    return new ValueTask<FluidValue>(FluidValue.Create(localAccessor.Accessor.Get(context.Model, Identifier, context), context.Options));
                 }
 
                 return new ValueTask<FluidValue>(NilValue.Instance);

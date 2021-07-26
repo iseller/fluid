@@ -52,7 +52,22 @@ namespace Fluid
         protected static readonly Parser<string> BinaryOr = Terms.Text("or");
         protected static readonly Parser<string> BinaryAnd = Terms.Text("and");
 
-        protected static readonly Parser<string> Identifier = Terms.Identifier(extraPart: static c => c == '-').Then(x => x.ToString());
+        protected static readonly Parser<string> Identifier = Terms.Identifier(extraPart: static c => c == '-').Then((ctx, x) =>
+        {
+            // Detect patterns like {{ size-}} to exclude the '-' from the identifier
+            // c.f. https://github.com/sebastienros/fluid/issues/347
+            if (x.Buffer[x.Offset + x.Length - 1] == '-' && (ctx.Scanner.Cursor.Current == '%' || ctx.Scanner.Cursor.Current == '}'))
+            {
+                // Trim the '-'
+                x = new TextSpan(x.Buffer, x.Offset, x.Length - 1);
+
+                // Reset the cursor to the '-'
+                var current = ctx.Scanner.Cursor.Position;
+                ctx.Scanner.Cursor.ResetPosition(new TextPosition(current.Offset - 1, current.Line, current.Column - 1));
+            }
+
+            return x.ToString();
+        });
 
         protected readonly Parser<List<FilterArgument>> ArgumentsList;
         protected readonly Parser<Expression> LogicalExpression;
@@ -114,7 +129,7 @@ namespace Fluid
 
             var CaseValueList = Separated(BinaryOr, Primary);
 
-            CombinatoryExpression = Primary.And(ZeroOrOne(OneOf(Terms.Pattern(x => x == '=' || x == '!' || x == '<' || x == '>', maxSize: 2), Terms.Identifier().AndSkip(Literals.WhiteSpace(failOnEmpty: true))).Then(x => x.ToString()).When(x => RegisteredOperators.ContainsKey(x)).And(Primary)))
+            CombinatoryExpression = Primary.And(ZeroOrOne(OneOf(Terms.Pattern(x => x == '=' || x == '!' || x == '<' || x == '>', maxSize: 2), Terms.Identifier().AndSkip(Literals.WhiteSpace())).Then(x => x.ToString()).When(x => RegisteredOperators.ContainsKey(x)).And(Primary)))
                 .Then(x =>
                  {
                      if (x.Item2.Item1 == null)
@@ -165,7 +180,7 @@ namespace Fluid
                     Pipe
                     .SkipAnd(Identifier.ElseError(IdentifierAfterPipe))
                     .And(ZeroOrOne(Colon.SkipAnd(ArgumentsList)))))
-                .Then(x =>
+                .Then((ctx, x) =>
                     {
                         // Primary
                         var result = x.Item1;
@@ -226,17 +241,10 @@ namespace Fluid
                         .Then<Statement>(x => new CaptureStatement(x.Item1, x.Item2))
                         .ElseError("Invalid 'capture' tag")
                         ;
-            var CycleTag = ZeroOrOne(Identifier.AndSkip(Colon))
+            var CycleTag = ZeroOrOne(Primary.AndSkip(Colon))
                         .And(Separated(Comma, Primary))
                         .AndSkip(TagEnd)
-                        .Then<Statement>(x =>
-                        {
-                            var group = string.IsNullOrEmpty(x.Item1)
-                                ? null
-                                : new LiteralExpression(StringValue.Create(x.Item1));
-
-                            return new CycleStatement(group, x.Item2);
-                        })
+                        .Then<Statement>(x => new CycleStatement(x.Item1, x.Item2))
                         .ElseError("Invalid 'cycle' tag")
                         ;
             var DecrementTag = Identifier.AndSkip(TagEnd)
@@ -278,7 +286,7 @@ namespace Fluid
                        .AndSkip(TagEnd)
                        .AndSkip(AnyCharBefore(TagStart, canBeEmpty: true))
                        .And(ZeroOrMany(
-                           TagStart.Then(x => x).AndSkip(Terms.Text("when")).And(CaseValueList.ElseError("Invalid 'when' tag")).AndSkip(TagEnd).And(AnyTagsList))
+                           TagStart.AndSkip(Terms.Text("when")).And(CaseValueList.ElseError("Invalid 'when' tag")).AndSkip(TagEnd).And(AnyTagsList))
                            .Then(x => x.Select(e => new WhenStatement(e.Item2, e.Item3)).ToArray()))
                        .And(ZeroOrOne(
                            CreateTag("else").SkipAnd(AnyTagsList))
@@ -471,6 +479,21 @@ namespace Fluid
                 .Then<Statement>(x => new EmptyBlockStatement(x, render))
                 .ElseError($"Invalid '{tagName}' tag")
                 ;
+        }
+
+        /// <summary>
+        /// Compiles all expressions.
+        /// </summary>
+        public virtual FluidParser Compile()
+        {
+            foreach (var entry in RegisteredTags.ToArray())
+            {
+                RegisteredTags[entry.Key] = entry.Value.Compile();
+            }
+
+            Grammar = Grammar.Compile();
+
+            return this;
         }
     }
 }

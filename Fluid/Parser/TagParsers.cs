@@ -49,10 +49,10 @@ namespace Fluid.Parser
             {
                 if (_skipWhiteSpace)
                 {
-                    context.Scanner.SkipWhiteSpace();
+                    context.SkipWhiteSpace();
                 }
 
-                var start = context.Scanner.Cursor.Offset;
+                var start = context.Scanner.Cursor.Position;
 
                 if (context.Scanner.ReadChar('{') && context.Scanner.ReadChar('%'))
                 {
@@ -72,11 +72,12 @@ namespace Fluid.Parser
                         p.PreviousTextSpanStatement = null;
                     }
 
-                    result.Set(start, context.Scanner.Cursor.Offset, trim ? TagResult.TagOpenTrim : TagResult.TagOpen);
+                    result.Set(start.Offset, context.Scanner.Cursor.Offset, trim ? TagResult.TagOpenTrim : TagResult.TagOpen);
                     return true;
                 }
                 else
                 {
+                    context.Scanner.Cursor.ResetPosition(start);
                     return false;
                 }
             }
@@ -95,10 +96,10 @@ namespace Fluid.Parser
             {
                 if (_skipWhiteSpace)
                 {
-                    context.Scanner.SkipWhiteSpace();
+                    context.SkipWhiteSpace();
                 }
 
-                var start = context.Scanner.Cursor.Offset;
+                var start = context.Scanner.Cursor.Position;
 
                 bool trim = context.Scanner.ReadChar('-');
 
@@ -111,11 +112,12 @@ namespace Fluid.Parser
                     p.PreviousIsTag = true;
                     p.PreviousIsOutput = false;
 
-                    result.Set(start, context.Scanner.Cursor.Offset, trim ? TagResult.TagCloseTrim : TagResult.TagClose);
+                    result.Set(start.Offset, context.Scanner.Cursor.Offset, trim ? TagResult.TagCloseTrim : TagResult.TagClose);
                     return true;
                 }
                 else
                 {
+                    context.Scanner.Cursor.ResetPosition(start);
                     return false;
                 }
             }
@@ -134,10 +136,10 @@ namespace Fluid.Parser
             {
                 if (_skipWhiteSpace)
                 {
-                    context.Scanner.SkipWhiteSpace();
+                    context.SkipWhiteSpace();
                 }
 
-                var start = context.Scanner.Cursor.Offset;
+                var start = context.Scanner.Cursor.Position;
 
                 if (context.Scanner.ReadChar('{') && context.Scanner.ReadChar('{'))
                 {
@@ -158,11 +160,12 @@ namespace Fluid.Parser
                     }
 
 
-                    result.Set(start, context.Scanner.Cursor.Offset, trim ? TagResult.TagOpenTrim : TagResult.TagOpen);
+                    result.Set(start.Offset, context.Scanner.Cursor.Offset, trim ? TagResult.TagOpenTrim : TagResult.TagOpen);
                     return true;
                 }
                 else
                 {
+                    context.Scanner.Cursor.ResetPosition(start);
                     return false;
                 }
             }
@@ -181,10 +184,10 @@ namespace Fluid.Parser
             {
                 if (_skipWhiteSpace)
                 {
-                    context.Scanner.SkipWhiteSpace();
+                    context.SkipWhiteSpace();
                 }
 
-                var start = context.Scanner.Cursor.Offset;
+                var start = context.Scanner.Cursor.Position;
 
                 bool trim = context.Scanner.ReadChar('-');
 
@@ -197,11 +200,12 @@ namespace Fluid.Parser
                     p.PreviousIsTag = false;
                     p.PreviousIsOutput = true;
 
-                    result.Set(start, context.Scanner.Cursor.Offset, trim ? TagResult.TagCloseTrim : TagResult.TagClose);
+                    result.Set(start.Offset, context.Scanner.Cursor.Offset, trim ? TagResult.TagCloseTrim : TagResult.TagClose);
                     return true;
                 }
                 else
                 {
+                    context.Scanner.Cursor.ResetPosition(start);
                     return false;
                 }
             }

@@ -27,16 +27,17 @@ namespace Fluid.Tests
         }
 
         [Fact]
-        public async Task DefaultReturnsDefaultIfNotDefined()
+        public async Task DefaultReturnsDefaultIfNotDefinedOrEmptyOrFalse()
         {
-            var input = NilValue.Instance;
+            foreach (var value in new FluidValue[] { NilValue.Instance, new StringValue(""), BooleanValue.False, ArrayValue.Empty })
+            {
+                var arguments = new FilterArguments().Add(new StringValue("bar"));
+                var context = new TemplateContext();
 
-            var arguments = new FilterArguments().Add(new StringValue("bar"));
-            var context = new TemplateContext();
+                var result = await MiscFilters.Default(value, arguments, context);
 
-            var result = await MiscFilters.Default(input, arguments, context);
-
-            Assert.Equal("bar", result.ToStringValue());
+                Assert.Equal("bar", result.ToStringValue());
+            }
         }
 
         [Fact]
@@ -225,7 +226,7 @@ namespace Fluid.Tests
 
             var result = await MiscFilters.ChangeTimeZone(input, arguments, context);
 
-            Assert.Equal(expected, ((DateTimeOffset) result.ToObjectValue()).ToString("yyyy-MM-ddTHH:mm:ssK"));
+            Assert.Equal(expected, ((DateTimeOffset)result.ToObjectValue()).ToString("yyyy-MM-ddTHH:mm:ssK"));
         }
 
         [Theory]
@@ -233,7 +234,7 @@ namespace Fluid.Tests
         [InlineData("2020-05-18T02:13:09+00:00", "Europe/London", "%l:%M%P", "3:13am")]
         [InlineData("2020-05-18T02:13:09+00:00", "Europe/wrongTZ", "%l:%M%P", "2:13am")]
         [InlineData("2020-05-18T02:13:09+00:00", "Australia/Adelaide", "%l:%M%P", "11:43am")]
-        public async Task ChangeTimeZoneAndApply12hFormat(string initialDateTime,string timeZone, string format, string expected)
+        public async Task ChangeTimeZoneAndApply12hFormat(string initialDateTime, string timeZone, string format, string expected)
         {
             var input = new DateTimeValue(DateTimeOffset.Parse(initialDateTime));
             var timeZoneArgument = new FilterArguments(new StringValue(timeZone));
@@ -243,7 +244,7 @@ namespace Fluid.Tests
 
             var result = await MiscFilters.ChangeTimeZone(input, timeZoneArgument, context);
             result = await MiscFilters.Date(result, formatArgument, context);
-            
+
             Assert.Equal(expected, result.ToStringValue().Trim());
         }
 
@@ -254,7 +255,8 @@ namespace Fluid.Tests
             var format = "%D";
 
             var arguments = new FilterArguments(new StringValue(format));
-            var options = new TemplateOptions() { 
+            var options = new TemplateOptions()
+            {
                 CultureInfo = CultureInfo.InvariantCulture,
                 Now = () => new DateTimeOffset(new DateTime(2017, 8, 1, 5, 4, 36, 123), new TimeSpan(0))
             };
@@ -328,7 +330,7 @@ namespace Fluid.Tests
 
             var input = NumberValue.Create(number);
             var format = new FilterArguments(new StringValue("%s"));
-            var context = new TemplateContext { TimeZone = Eastern};
+            var context = new TemplateContext { TimeZone = Eastern };
 
             var result = await MiscFilters.Date(input, format, context);
 
@@ -356,7 +358,7 @@ namespace Fluid.Tests
             var format = new FilterArguments(new StringValue("%s"));
             var context = new TemplateContext { TimeZone = TimeZoneInfo.Utc };
 
-            var result = await MiscFilters .Date(input, format, context);
+            var result = await MiscFilters.Date(input, format, context);
 
             Assert.Equal("18000", result.ToStringValue());
         }
@@ -423,7 +425,7 @@ namespace Fluid.Tests
             var resultFR = await MiscFilters.Date(input, arguments, context);
 
             context = new TemplateContext(new TemplateOptions { CultureInfo = new CultureInfo("en-US"), TimeZone = TimeZoneInfo.Utc });
-            var resultUS = await MiscFilters .Date(input, arguments, context);
+            var resultUS = await MiscFilters.Date(input, arguments, context);
 
             Assert.Equal("08/01/2017", resultFR.ToStringValue());
             Assert.Equal("01/08/2017", resultUS.ToStringValue());
@@ -476,10 +478,10 @@ namespace Fluid.Tests
         [InlineData(-123.12, "-123.12")]
         [InlineData(null, "null")]
         [InlineData("", "\"\"")]
-        [InlineData(new int[] { 1, 2, 3}, "[1,2,3]")]
-        [InlineData(new string[] { "a", "b", "c"}, "[\"a\",\"b\",\"c\"]")]
+        [InlineData(new int[] { 1, 2, 3 }, "[1,2,3]")]
+        [InlineData(new string[] { "a", "b", "c" }, "[\"a\",\"b\",\"c\"]")]
         [InlineData(new object[0], "[]")]
-        [InlineData(new object[] { 1, "a", true}, "[1,\"a\",true]")]
+        [InlineData(new object[] { 1, "a", true }, "[1,\"a\",true]")]
         public async Task Json(object value, string expected)
         {
             var input = FluidValue.Create(value, TemplateOptions.Default);
@@ -490,6 +492,59 @@ namespace Fluid.Tests
             var result = await MiscFilters.Json(input, arguments, context);
 
             Assert.Equal(expected, result.ToStringValue());
+        }
+
+        [Fact]
+        public async Task JsonShouldHideMembers()
+        {
+            var inputObject = new JsonAccessStrategy();
+            var templateOptions = new TemplateOptions();
+            templateOptions.MemberAccessStrategy.Register<JsonAccessStrategy, FluidValue>((obj, name, context) =>
+            {
+                return name switch
+                {
+                    nameof(JsonAccessStrategy.Visible) => new StringValue(obj.Visible),
+                    nameof(JsonAccessStrategy.Null) => new StringValue(obj.Null),
+                    _ => NilValue.Instance
+                };
+            });
+
+            var input = FluidValue.Create(inputObject, templateOptions);
+            var expected = "{\"Visible\":\"Visible\",\"Null\":\"\"}";
+
+            var arguments = new FilterArguments();
+            var context = new TemplateContext(templateOptions);
+
+            var result = await MiscFilters.Json(input, arguments, context);
+
+            Assert.Equal(expected, result.ToStringValue());
+        }
+
+        [Fact]
+        public async Task JsonShouldHandleCircularReferences()
+        {
+            var model = TestObjects.RecursiveReferenceObject;
+            var input = FluidValue.Create(model, TemplateOptions.Default);
+            var to = new TemplateOptions();
+            to.MemberAccessStrategy.Register<TestObjects.Node>();
+
+            var result = await MiscFilters.Json(input, new FilterArguments(), new TemplateContext(to));
+
+            Assert.Equal("{\"Name\":\"Object1\",\"NodeRef\":{\"Name\":\"Child1\",\"NodeRef\":\"circular reference detected.\"}}", result.ToStringValue());
+        }
+
+        [Fact]
+        public async Task JsonShouldHandleCircularReferencesOnSiblingPropertiesSeparately()
+        {
+            var model = TestObjects.SiblingPropertiesHaveSameReferenceObject;
+            var input = FluidValue.Create(model, TemplateOptions.Default);
+            var to = new TemplateOptions();
+            to.MemberAccessStrategy.Register<TestObjects.Node>();
+            to.MemberAccessStrategy.Register<TestObjects.MultipleNode>();
+
+            var result = await MiscFilters.Json(input, new FilterArguments(), new TemplateContext(to));
+
+            Assert.Equal("{\"Name\":\"MultipleNode1\",\"Node1\":{\"Name\":\"Object1\",\"NodeRef\":{\"Name\":\"Child1\",\"NodeRef\":\"circular reference detected.\"}},\"Node2\":{\"Name\":\"Object1\",\"NodeRef\":{\"Name\":\"Child1\",\"NodeRef\":\"circular reference detected.\"}}}", result.ToStringValue());
         }
 
         [Theory]
@@ -510,8 +565,8 @@ namespace Fluid.Tests
                 ;
 
             var arguments = new FilterArguments(new StringValue(format));
-            var context = new TemplateContext( new TemplateOptions { CultureInfo = cultureInfo  }) ;
-            
+            var context = new TemplateContext(new TemplateOptions { CultureInfo = cultureInfo });
+
             var result = await MiscFilters.FormatNumber(FluidValue.Create(input, context.Options), arguments, context);
 
             Assert.Equal(expected, result.ToStringValue());
@@ -535,6 +590,64 @@ namespace Fluid.Tests
             var result = await MiscFilters.FormatString(FluidValue.Create(input, context.Options), arguments, context);
 
             Assert.Equal(expected, result.ToStringValue());
+        }
+
+        public static class TestObjects
+        {
+            public class Node
+            {
+                public string Name { get; set; }
+                public Node NodeRef { get; set; }
+            }
+
+            public class MultipleNode
+            {
+                public string Name { get; set; }
+
+                public Node Node1 { get; set; }
+
+                public Node Node2 { get; set; }
+            }
+
+            public static Node RecursiveReferenceObject
+            {
+                get
+                {
+                    var parent = new Node
+                    {
+                        Name = "Object1",
+                    };
+                    var child = new Node
+                    {
+                        Name = "Child1",
+                        NodeRef = parent
+                    };
+                    parent.NodeRef = child;
+                    return parent;
+                }
+            }
+
+            public static object SiblingPropertiesHaveSameReferenceObject
+            {
+                get
+                {
+                    var n = RecursiveReferenceObject;
+                    var m = new MultipleNode
+                    {
+                        Name = "MultipleNode1",
+                        Node1 = n,
+                        Node2 = n
+                    };
+                    return m;
+                }
+            }
+        }
+
+        private class JsonAccessStrategy
+        {
+            public string Visible { get; set; } = "Visible";
+            public string Null { get; set; }
+            public string Hidden { get; set; } = "Hidden";
         }
     }
 }

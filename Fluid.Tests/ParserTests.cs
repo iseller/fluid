@@ -11,7 +11,11 @@ namespace Fluid.Tests
 {
     public class ParserTests
     {
-        static FluidParser _parser = new FluidParser();
+#if COMPILED
+        private static FluidParser _parser = new FluidParser().Compile();
+#else
+        private static FluidParser _parser = new FluidParser();
+#endif
 
         private static IReadOnlyList<Statement> Parse(string source)
         {
@@ -511,15 +515,40 @@ def", "at (")]
         }
 
         [Fact]
-        public void ShouldSkipNewLines()
+        public void ShouldSkipNewLinesInTags()
         {
-            var source = @"{%if true
-                                    and 
-                                        true%}true{%endif%}";
+            var source = @"{% 
+if
+true
+or
+false
+-%}
+true
+{%-
+endif
+%}";
 
             var result = _parser.TryParse(source, out var template, out var errors);
 
-            Assert.True(result);
+            Assert.True(result, errors);
+            Assert.NotNull(template);
+            Assert.Null(errors);
+
+            var rendered = template.Render();
+
+            Assert.Equal("true", rendered);
+        }
+
+        [Fact]
+        public void ShouldSkipNewLinesInOutput()
+        {
+            var source = @"{{
+true
+}}";
+
+            var result = _parser.TryParse(source, out var template, out var errors);
+
+            Assert.True(result, errors);
             Assert.NotNull(template);
             Assert.Null(errors);
 
@@ -878,6 +907,19 @@ class  {
     }
 }
 ", rendered);
+        }
+
+
+        [Theory]
+        [InlineData("{{1}}", "1")]
+        [InlineData("{{-1-}}", "1")]
+        [InlineData("{%-assign len='1,2,3'|split:','|size-%}{{len}}", "3")] // size-%} is ambiguous and can be read as "size -%}" or "size- %}"
+        public async Task ShouldSupportCompactNotation(string source, string expected)
+        {
+            Assert.True(_parser.TryParse(source, out var template, out var _));
+            var context = new TemplateContext();
+            var result = await template.RenderAsync(context);
+            Assert.Equal(expected, result);
         }
     }
 }
