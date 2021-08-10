@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Fluid.Values;
+using Fluid.Utils;
 
 namespace Fluid.Filters
 {
@@ -81,7 +82,7 @@ namespace Fluid.Filters
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var second = (arguments.At(0).ToObjectValue() as IEnumerable).AsQueryable();
 
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Concat", new Type[] { source.ElementType },
                 source.Expression, System.Linq.Expressions.Expression.Constant(second))
             );
@@ -102,7 +103,7 @@ namespace Fluid.Filters
 
                 var selector = ArrayFilters.GetPropertySelector(source.ElementType, member);
 
-                var d = source.Provider.CreateQuery(
+                var d = source.CreateQuery(
                     System.Linq.Expressions.Expression.Call(typeof(Queryable), "Select",
                         new Type[] { source.ElementType, selector.Body.Type },
                         source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
@@ -130,7 +131,7 @@ namespace Fluid.Filters
 
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var predicate = GetPropertyPredicate(source.ElementType, member, targetValue.ToObjectValue());
-            var d = source.Provider.CreateQuery(
+            var d = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Where",
                     new Type[] { source.ElementType },
                     source.Expression, System.Linq.Expressions.Expression.Quote(predicate)));
@@ -147,7 +148,7 @@ namespace Fluid.Filters
 
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
 
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Reverse", new Type[] { source.ElementType },
                 source.Expression)
             );
@@ -195,7 +196,7 @@ namespace Fluid.Filters
                     }
 
                     var selector = GetPropertySelector(source.ElementType, member);
-                    d = source.Provider.CreateQuery(
+                    d = source.CreateQuery(
                         System.Linq.Expressions.Expression.Call(typeof(Queryable), method,
                         new Type[] { source.ElementType, selector.Body.Type },
                         source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
@@ -205,7 +206,7 @@ namespace Fluid.Filters
             else
             {
                 var selector = GetPropertySelector(source.ElementType, "");
-                d = source.Provider.CreateQuery(
+                d = source.CreateQuery(
                     System.Linq.Expressions.Expression.Call(typeof(Queryable), "OrderBy",
                     new Type[] { source.ElementType, selector.Body.Type },
                     source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
@@ -222,7 +223,7 @@ namespace Fluid.Filters
         public static ValueTask<FluidValue> Uniq(FluidValue input, FilterArguments arguments, TemplateContext context)
         {
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Distinct", new Type[] { source.ElementType }, source.Expression)
             );
             return FluidValue.Create(source, context.Options);
@@ -237,7 +238,7 @@ namespace Fluid.Filters
 
             var skip = arguments.At(0).Or(NumberValue.Zero);
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Skip", new Type[] { source.ElementType },
                 source.Expression, System.Linq.Expressions.Expression.Constant((int)skip.ToNumberValue()))
             );
@@ -253,7 +254,7 @@ namespace Fluid.Filters
             var take = arguments.At(0).Or(NumberValue.Zero);
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
 
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Take", new Type[] { source.ElementType },
                 source.Expression, System.Linq.Expressions.Expression.Constant((int)take.ToNumberValue()))
             );
@@ -267,7 +268,7 @@ namespace Fluid.Filters
             }
 
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Any", new Type[] { source.ElementType },
                 source.Expression)
             );
@@ -285,7 +286,7 @@ namespace Fluid.Filters
 
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var predicate = GetPropertyPredicate(source.ElementType, member, targetValue.ToObjectValue());
-            var d = source.Provider.CreateQuery(
+            var d = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "All",
                     new Type[] { source.ElementType },
                     source.Expression, System.Linq.Expressions.Expression.Quote(predicate)));
@@ -308,7 +309,7 @@ namespace Fluid.Filters
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var second = (secondInput.ToObjectValue() as IEnumerable).AsQueryable();
 
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Intersect", new Type[] { source.ElementType },
                 source.Expression, System.Linq.Expressions.Expression.Constant(second))
             );
@@ -331,7 +332,7 @@ namespace Fluid.Filters
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var second = (secondInput.ToObjectValue() as IEnumerable).AsQueryable();
 
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Union", new Type[] { source.ElementType },
                 source.Expression, System.Linq.Expressions.Expression.Constant(second))
             );
@@ -354,7 +355,7 @@ namespace Fluid.Filters
             var source = (input.ToObjectValue() as IEnumerable).AsQueryable();
             var second = (secondInput.ToObjectValue() as IEnumerable).AsQueryable();
 
-            source = source.Provider.CreateQuery(
+            source = source.CreateQuery(
                 System.Linq.Expressions.Expression.Call(typeof(Queryable), "Except", new Type[] { source.ElementType },
                 source.Expression, System.Linq.Expressions.Expression.Constant(second))
             );
@@ -457,7 +458,7 @@ namespace Fluid.Filters
                         if (value is IQueryable)
                         {
                             var vq = value as IQueryable;
-                            vq = vq.Provider.CreateQuery(
+                            vq = vq.CreateQuery(
                                 System.Linq.Expressions.Expression.Call(
                                     typeof(Queryable), "Take",
                                     new Type[] { vq.ElementType },

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
+using Fluid.Utils;
 
 namespace Fluid.Values
 {
@@ -30,8 +31,7 @@ namespace Fluid.Values
             {
                 if (this._valueList == null)
                 {
-                    var q = this.Values.Provider.CreateQuery(
-                        Expression.Call(
+                    var q = this.Values.CreateQuery(Expression.Call(
                             typeof(Queryable), "Take",
                             new Type[] { this.Values.ElementType },
                             this.Values.Expression, Expression.Constant(_maxItem)));
@@ -112,14 +112,14 @@ namespace Fluid.Values
 
                 if (i > 0)
                 {
-                    q = this.Values.Provider.CreateQuery(Expression.Call(
+                    q = this.Values.CreateQuery(Expression.Call(
                         typeof(Queryable), "Skip",
                         new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(i)));
                 }
 
-                val = q.Provider.Execute(Expression.Call(
+                val = q.Execute(Expression.Call(
                     typeof(Queryable), "FirstOrDefault",
-                    new Type[] { q.ElementType }, q.Expression));
+                    new Type[] { q.ElementType }, q.Expression), q.ElementType);
 
                 if (val != null)
                 {
@@ -154,7 +154,7 @@ namespace Fluid.Values
         {
             if (!this._count.HasValue)
             {
-                this._count = (long)_value.Provider.Execute(Expression.Call(
+                this._count = _value.Provider.Execute<long>(Expression.Call(
                     typeof(Queryable), "LongCount",
                     new Type[] { _value.ElementType }, _value.Expression));
 
@@ -194,12 +194,12 @@ namespace Fluid.Values
             {
                 if (this._count.HasValue && this._count.Value < this._maxItem)
                 {
-                    return (bool)this.Values.Provider.Execute(Expression.Call(
+                    return this.Values.Provider.Execute<bool>(Expression.Call(
                         typeof(Queryable), "Contains",
                         new Type[] { this.Values.ElementType }, this.Values.Expression, Expression.Constant(val)));
                 }
 
-                return (bool)this._value.Provider.Execute(Expression.Call(
+                return this._value.Provider.Execute<bool>(Expression.Call(
                     typeof(Queryable), "Contains",
                     new Type[] { this._value.ElementType }, this._value.Expression, Expression.Constant(val)));
             }
@@ -224,9 +224,9 @@ namespace Fluid.Values
 
         internal override FluidValue FirstOrDefault()
         {
-            var first = this.Values.Provider.Execute(Expression.Call(
+            var first = this.Values.Execute(Expression.Call(
                 typeof(Queryable), "FirstOrDefault",
-                new Type[] { this.Values.ElementType }, this.Values.Expression));
+                new Type[] { this.Values.ElementType }, this.Values.Expression), this.Values.ElementType);
 
             if (first != null)
             {
@@ -241,15 +241,15 @@ namespace Fluid.Values
             object last;
             if (this._count.HasValue && this._count <= this._maxItem)
             {
-                last = this.Values.Provider.Execute(Expression.Call(
+                last = this.Values.Execute(Expression.Call(
                     typeof(Queryable), "LastOrDefault",
-                    new Type[] { this.Values.ElementType }, this.Values.Expression));
+                    new Type[] { this.Values.ElementType }, this.Values.Expression), this.Values.ElementType);
             }
             else
             {
-                last = this._value.Provider.Execute(Expression.Call(
+                last = this._value.Execute(Expression.Call(
                     typeof(Queryable), "LastOrDefault",
-                    new Type[] { this._value.ElementType }, this._value.Expression));
+                    new Type[] { this._value.ElementType }, this._value.Expression), this._value.ElementType);
             }
 
             if (last != null)
