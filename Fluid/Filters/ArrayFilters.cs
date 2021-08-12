@@ -462,7 +462,7 @@ namespace Fluid.Filters
                                 System.Linq.Expressions.Expression.Call(
                                     typeof(Queryable), "Take",
                                     new Type[] { vq.ElementType },
-                                    vq.Expression, System.Linq.Expressions.Expression.Constant(50)));
+                                    vq.Expression, System.Linq.Expressions.Expression.Constant(QueryableValue.MAX_ITEM)));
 
                             value = Activator.CreateInstance(typeof(List<>).MakeGenericType(itemType), vq);
                         }
