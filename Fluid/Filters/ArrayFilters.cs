@@ -106,7 +106,7 @@ namespace Fluid.Filters
                 var d = source.CreateQuery(
                     System.Linq.Expressions.Expression.Call(typeof(Queryable), "Select",
                         new Type[] { source.ElementType, selector.Body.Type },
-                        source.Expression, System.Linq.Expressions.Expression.Quote(selector)));
+                        source.Expression, System.Linq.Expressions.Expression.Quote(selector)), selector.Body.Type);
                 return FluidValue.Create(d, context.Options);
             }
             catch (Exception ep)

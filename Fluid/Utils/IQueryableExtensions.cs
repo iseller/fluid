@@ -7,10 +7,10 @@ namespace Fluid.Utils
 {
     internal static class IQueryableExtensions
     {
-        public static IQueryable CreateQuery(this IQueryable q, Expression exp)
+        public static IQueryable CreateQuery(this IQueryable q, Expression exp, Type resultType = null)
         {
             MethodInfo createQueryMethod = null;
-            if (!(q.Provider is EnumerableQuery) && !(q.Provider is EnumerableQuery))
+            if (!(q.Provider is EnumerableQuery))
             {
                 var providerType = q.Provider.GetType();
                 createQueryMethod = providerType.GetMethods()
@@ -19,7 +19,12 @@ namespace Fluid.Utils
 
             if (createQueryMethod != null)
             {
-                return createQueryMethod.MakeGenericMethod(q.ElementType)
+                if (resultType == null)
+                {
+                    resultType = q.ElementType;
+                }
+
+                return createQueryMethod.MakeGenericMethod(resultType)
                     .Invoke(q.Provider, new object[] { exp }) as IQueryable;
             }
             else
