@@ -108,8 +108,15 @@ namespace Fluid.Filters
                     }
                 }
             }
-            
-            if (input.IsNil() || input == BooleanValue.False || EmptyValue.Instance.Equals(input))
+
+            var allow_false = false;
+            if (arguments.HasNamed("allow_false"))
+            {
+                var ignore_empty = arguments["allow_false"];
+                allow_false = ignore_empty.ToBooleanValue();
+            }
+
+            if (input.IsNil() || (!allow_false && input == BooleanValue.False) || EmptyValue.Instance.Equals(input))
             {
                 return arguments.At(0);
             }

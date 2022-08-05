@@ -466,6 +466,39 @@ namespace Fluid.Filters
 
                             value = Activator.CreateInstance(typeof(List<>).MakeGenericType(itemType), vq);
                         }
+                        else
+                        {
+                            var elementType = (value as System.Collections.IEnumerable).AsQueryable().ElementType;
+                            if (!itemType.IsAssignableFrom(elementType))
+                            {
+                                var valueList = Activator.CreateInstance(typeof(List<>).MakeGenericType(itemType)) as System.Collections.IList;
+                                var converter = System.ComponentModel.TypeDescriptor.GetConverter(itemType);
+                                var list = (value as System.Collections.IEnumerable).OfType<object>().Select(o =>
+                                {
+                                    if (o != null)
+                                    {
+                                        return converter.ConvertFromString(o.ToString());
+                                    }
+                                    else
+                                    {
+                                        bool canBeNull = !itemType.IsValueType || Nullable.GetUnderlyingType(itemType) != null;
+                                        if (!canBeNull)
+                                        {
+                                            return Activator.CreateInstance(itemType);
+                                        }
+                                    }
+
+                                    return null;
+                                });
+
+                                foreach (var h in list)
+                                {
+                                    valueList.Add(h);
+                                }
+                                value = valueList;
+                            }
+                        }
+
                         System.Linq.Expressions.Expression valueExp = System.Linq.Expressions.Expression.Constant(value);
                         fullExp = System.Linq.Expressions.Expression.Call(typeof(Enumerable), "Contains", new[] { itemType }, valueExp, fullExp);
                     }
